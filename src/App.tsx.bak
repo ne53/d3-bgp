@@ -29,8 +29,8 @@ function ZoomableSVG({ children, width, height }) {
 }
 
 function App() {
-  const [pathPairs, setPathPairs] = useState<{ pairs: number[][], timestamp: number }[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [pathPairs, setPathPairs] = useState<number[][][]>([]);
+  const [logs, setLogs] = useState<string[]>([]); // State to store logs
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -49,16 +49,15 @@ function App() {
           pairs.push([path[i], path[i + 1]]);
         }
 
-        const timestamp = Date.now();
-        setPathPairs((prevPairs) => [...prevPairs, { pairs, timestamp }]);
-        setLogs((prevLogs) => [`Path: ${path.join(' → ')}`, ...prevLogs]);
+        setPathPairs((prevPairs) => [...prevPairs, pairs]);
+        setLogs((prevLogs) => [`Path: ${path.join(' → ')}`, ...prevLogs]); // Log the path
       }
     };
 
     ws.onopen = () => {
       const subscribeMessage = {
         type: "ris_subscribe",
-        data: { path: 151381 }
+        data: { host: "rrc01", path: 3356 }
       };
       ws.send(JSON.stringify(subscribeMessage));
       setIsConnected(true);
@@ -86,7 +85,7 @@ function App() {
     const links = [];
     const nodesSet = new Set<number>();
 
-    pathPairs.forEach(({ pairs }) => {
+    pathPairs.forEach((pairs) => {
       pairs.forEach(([source, target]) => {
         nodesSet.add(source);
         nodesSet.add(target);
@@ -100,14 +99,13 @@ function App() {
     }));
 
     function getColor(id) {
-    //   const hue = (id / 500000) * 360;
-    //   return `hsl(${hue}, 100%, 50%)`;
-      return `hsl(1, 100%, 100%)`;
+      const hue = (id / 500000) * 360;
+      return `hsl(${hue}, 100%, 50%)`;
     }
 
     const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d => d.id).distance(400))
-    .force("charge", d3.forceManyBody().strength(-30))
+    .force("link", d3.forceLink(links).id(d => d.id).distance(200)) // 距離を100に設定
+    .force("charge", d3.forceManyBody().strength(-30)) // 吸引力を弱めるため負の値を減らす
     .force("center", d3.forceCenter(400, 200))
     .on("tick", ticked);
 
@@ -184,17 +182,6 @@ function App() {
       simulation.stop();
     };
   }, [pathPairs]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentTime = Date.now();
-      setPathPairs((prevPairs) =>
-        prevPairs.filter(({ timestamp }) => currentTime - timestamp < 10000)
-      );
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const handleStop = () => {
     if (wsRef.current) {
