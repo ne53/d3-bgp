@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import './App.css';
+import Noise from './Noise';
 
 function ZoomableSVG({ children, width, height }) {
   const svgRef = useRef();
@@ -29,17 +30,20 @@ function ZoomableSVG({ children, width, height }) {
 }
 
 function App() {
-  const [pathPairs, setPathPairs] = useState<{ pairs: number[][], timestamp: number }[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [pathPairs, setPathPairs] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const svgRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef(null);
+  const asn = 17676;
+  const [displayWidth, setDisplayWidth] = useState(window.innerWidth);
+  const [displayHeight, setDisplayHeight] = useState(window.innerHeight);
 
   const connectWebSocket = () => {
     const ws = new WebSocket("wss://ris-live.ripe.net/v1/ws/?client=ts-manual-example");
     wsRef.current = ws;
 
-    ws.onmessage = (message: MessageEvent) => {
+    ws.onmessage = (message) => {
       const parsed = JSON.parse(message.data);
       if (parsed.data && Array.isArray(parsed.data.path)) {
         const path = parsed.data.path;
@@ -51,14 +55,14 @@ function App() {
 
         const timestamp = Date.now();
         setPathPairs((prevPairs) => [...prevPairs, { pairs, timestamp }]);
-        setLogs((prevLogs) => [`Path: ${path.join(' → ')}`, ...prevLogs]);
+        setLogs((prevLogs) => [`${path.join(' → ')}`, ...prevLogs]);
       }
     };
 
     ws.onopen = () => {
       const subscribeMessage = {
         type: "ris_subscribe",
-        data: { path: 151381 }
+        data: { path: asn }
       };
       ws.send(JSON.stringify(subscribeMessage));
       setIsConnected(true);
@@ -84,7 +88,7 @@ function App() {
     svg.selectAll("*").remove();
 
     const links = [];
-    const nodesSet = new Set<number>();
+    const nodesSet = new Set();
 
     pathPairs.forEach(({ pairs }) => {
       pairs.forEach(([source, target]) => {
@@ -100,20 +104,22 @@ function App() {
     }));
 
     function getColor(id) {
-    //   const hue = (id / 500000) * 360;
-    //   return `hsl(${hue}, 100%, 50%)`;
-      return `hsl(1, 100%, 100%)`;
+      if (id === asn) {
+        return 'hsl(0, 100%, 50%)';
+      } else {
+        return 'hsl(0, 0%, 100%)';
+      }
     }
 
     const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).id(d => d.id).distance(400))
-    .force("charge", d3.forceManyBody().strength(-30))
-    .force("center", d3.forceCenter(400, 200))
-    .on("tick", ticked);
+      .force("link", d3.forceLink(links).id(d => d.id).distance(300))
+      .force("charge", d3.forceManyBody().strength(-30))
+      .force("center", d3.forceCenter(displayWidth / 3, displayHeight / 2))
+      .on("tick", ticked);
 
     const link = svg.append("g")
       .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
+      .attr("stroke-opacity", 0.4)
       .selectAll("line")
       .data(links)
       .join("line")
@@ -196,6 +202,16 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    handleStart(); // ここでhandleStartを呼び出す
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        setIsConnected(false);
+      }
+    };
+  }, []);
+
   const handleStop = () => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -208,26 +224,42 @@ function App() {
       connectWebSocket();
     }
   };
+  useEffect(() => {
+    const handleResize = () => {
+      setDisplayWidth(window.innerWidth);
+      setDisplayHeight(window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    // スクロール無効化
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      // スクロールを元に戻す
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
 
   return (
     <>
-      <ZoomableSVG width={1920} height={800}>
+      <ZoomableSVG width={displayWidth} height={displayHeight}>
         <g ref={svgRef} />
       </ZoomableSVG>
-      <button onClick={handleStart} disabled={isConnected}>
-        スタート
-      </button>
-      <button onClick={handleStop} disabled={!isConnected}>
-        ストップ
-      </button>
       <div className="logs">
         <h3>RIS Logs</h3>
         <ul>
-          {logs.slice(0, 10).map((log, index) => (
+          {logs.slice(0, 20).map((log, index) => (
             <li key={index}>{log}</li>
           ))}
         </ul>
       </div>
+  <Noise />
     </>
   );
 }

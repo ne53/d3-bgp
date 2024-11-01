@@ -1,0 +1,12 @@
+.NoiseCanvas {
+    position: fixed; /* 固定位置で表示 */
+    top: 0;         /* 画面の上端から0px */
+    left: 0;        /* 画面の左端から0px */
+    width: 100vw;   /* ビューポートの幅全体 */
+    height: 100vh;  /* ビューポートの高さ全体 */
+    pointer-events: none; /* クリックイベントを無効にする場合 */
+    z-index: 9999;  /* 他のコンテンツの上に表示 */
+    filter: grayscale(1);
+    opacity: 0.5;
+    mix-blend-mode: luminosity;
+  }
